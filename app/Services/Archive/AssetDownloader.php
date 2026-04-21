@@ -27,6 +27,7 @@ class AssetDownloader
     protected array $cache = [];
 
     public function __construct(
+        protected HtmlRewriter $rewriter,
         protected Client $http = new Client([
             'timeout'         => 15,
             'connect_timeout' => 5,
@@ -71,6 +72,23 @@ class AssetDownloader
         $body = (string) $response->getBody();
         $mime = $response->getHeaderLine('Content-Type') ?: null;
         $path = SnapshotStorage::assetPath($run, $url, $mime);
+
+        // CSS body rewriting: any url(...) refs inside a stylesheet need to
+        // be resolved against the CSS file's own URL (not the HTML page),
+        // then rewritten to archive URLs. Without this, CSS background-image
+        // references to fonts/images 404 when the archived page loads.
+        if ($mime && str_contains(strtolower($mime), 'text/css')) {
+            $cssUrls = [];
+            $body = $this->rewriter->rewriteCssUrls($body, $url, $snapshot->id, $cssUrls);
+
+            // Queue the newly-discovered URLs as further downloads so the
+            // rewritten url(...) targets actually exist on disk.
+            foreach (array_unique($cssUrls) as $cssUrl) {
+                if (! isset($this->cache[sha1($cssUrl)])) {
+                    $this->download($run, $snapshot, $cssUrl);
+                }
+            }
+        }
 
         Storage::disk('archive')->put($path, $body);
 

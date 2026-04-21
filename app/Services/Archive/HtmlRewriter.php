@@ -93,6 +93,19 @@ class HtmlRewriter
             }
         }
 
+        // Inline style="background-image: url(...)" / background:url(...). Common in
+        // portfolio grids (Colorlib templates etc.) where thumbnails are rendered
+        // via CSS rather than <img>. Without this the portfolio images show blank.
+        foreach ($xpath->query('//*[@style]') as $node) {
+            /** @var DOMElement $node */
+            $style = $node->getAttribute('style');
+            if (! str_contains(strtolower($style), 'url(')) {
+                continue;
+            }
+            $rewritten = $this->rewriteCssUrls($style, $baseUrl, $snapshotId, $assetUrls);
+            $node->setAttribute('style', $rewritten);
+        }
+
         // Extract <title>.
         $titleNode = $xpath->query('//title')->item(0);
         $title = $titleNode ? trim($titleNode->textContent) : null;
@@ -106,6 +119,35 @@ class HtmlRewriter
             'title'      => $title ?: null,
             'asset_urls' => array_values(array_unique($assetUrls)),
         ];
+    }
+
+    /**
+     * Rewrites every url(...) occurrence inside a CSS-ish string (inline style
+     * attribute or a full CSS file body). Relative paths are resolved against
+     * $baseUrl — for inline styles that's the HTML page URL, for CSS files
+     * it's the CSS file's own URL (so ./images/foo resolves to the CSS's dir).
+     *
+     * Collected absolute URLs are pushed into $urls by reference so the
+     * caller can feed them to AssetDownloader.
+     */
+    public function rewriteCssUrls(string $css, string $baseUrl, int $snapshotId, array &$urls): string
+    {
+        return preg_replace_callback(
+            '/url\(\s*([\'"]?)([^\'")]+)\1\s*\)/i',
+            function (array $m) use ($baseUrl, $snapshotId, &$urls) {
+                $url = trim($m[2]);
+                if ($url === '' || str_starts_with($url, 'data:') || str_starts_with($url, '#')) {
+                    return $m[0];
+                }
+                $abs = $this->absoluteUrl($url, $baseUrl);
+                if ($abs === null) {
+                    return $m[0];
+                }
+                $urls[] = $abs;
+                return 'url(' . $this->archiveUrlFor($snapshotId, $abs) . ')';
+            },
+            $css,
+        ) ?? $css;
     }
 
     /**
