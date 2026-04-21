@@ -13,11 +13,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Admin login — matches the user created during the Phase 1 scaffold.
+        // updateOrCreate so re-seeding doesn't blow up on the unique email.
+        User::updateOrCreate(
+            ['email' => 'admin@sitesatscale.com'],
+            [
+                'name'              => 'Admin',
+                'password'          => bcrypt('password'),
+                'email_verified_at' => now(),
+            ],
+        );
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            SiteSeeder::class,
         ]);
     }
 }
