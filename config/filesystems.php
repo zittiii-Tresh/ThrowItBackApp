@@ -60,6 +60,26 @@ return [
             'report' => false,
         ],
 
+        /*
+         | SiteArchive — archived crawl content (HTML + assets).
+         |
+         | Driver is chosen via ARCHIVE_DISK in .env — "local" for dev writes
+         | to storage/app/snapshots, "s3" flips to Amazon S3 (Settings Screen 7
+         | exposes this toggle in Phase 5). Files here are served on-demand by
+         | the User Archive snapshot viewer, never made public.
+         */
+        'archive' => [
+            'driver' => env('ARCHIVE_DISK', 'local') === 's3' ? 's3' : 'local',
+            'root'   => storage_path('app/' . env('ARCHIVE_ROOT', 'snapshots')),
+            // S3 fields below are only consulted when ARCHIVE_DISK=s3.
+            'key'    => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'throw'  => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

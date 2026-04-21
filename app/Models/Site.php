@@ -8,6 +8,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -77,11 +79,21 @@ class Site extends Model
 
     // -------------------------------------------------------------------------
     // Relations
-    //
-    // Phase 3 adds crawlRuns() and latestCrawlRun(). Method stubs intentionally
-    // left out here — adding them prematurely would reference a non-existent
-    // CrawlRun model. They go in with the Phase 3 migration + model.
     // -------------------------------------------------------------------------
+
+    public function crawlRuns(): HasMany
+    {
+        return $this->hasMany(CrawlRun::class);
+    }
+
+    /**
+     * Newest crawl run — used by the Dashboard "Recent crawl runs" card and
+     * the All sites table's "Last crawl" status.
+     */
+    public function latestCrawlRun(): HasOne
+    {
+        return $this->hasOne(CrawlRun::class)->latestOfMany();
+    }
 
     // -------------------------------------------------------------------------
     // Scopes
