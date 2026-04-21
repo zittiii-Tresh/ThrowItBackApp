@@ -1,12 +1,17 @@
 <?php
 
 use App\Http\Controllers\ArchiveController;
+use App\Livewire\ArchiveBrowse;
+use App\Livewire\ArchiveHome;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => view('welcome'))->name('home');
+// User archive — public, no login required (proposal PDF: "no login required
+// for internal access").
+Route::get('/',              ArchiveHome::class)  ->name('home');
+Route::get('/browse/{site}', ArchiveBrowse::class)->name('archive.browse');
 
 // Minimal archive playback. Phase 6 wraps these in a proper viewer UI
 // (viewport switcher / page tabs / asset panel). For now they let you
