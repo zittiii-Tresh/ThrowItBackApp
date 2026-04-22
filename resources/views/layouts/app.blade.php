@@ -6,6 +6,13 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? config('app.name', 'SiteArchive') }}</title>
 
+    {{-- Favicons. Modern browsers prefer SVG; PNG + ICO cover legacy. --}}
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet">
 
@@ -32,7 +39,13 @@
     <header class="border-b border-surface-200 dark:border-surface-800">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
             <a href="{{ route('home') }}" class="flex items-center gap-2">
-                <span class="grid h-8 w-8 place-items-center rounded-md bg-brand-600 text-sm font-semibold text-white">SA</span>
+                {{-- Brand mark — three offset rounded squares = stacked snapshots. --}}
+                <svg class="h-8 w-8" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect width="32" height="32" rx="7" fill="#534AB7"/>
+                    <rect x="6" y="6" width="14" height="14" rx="2.5" fill="#FFFFFF" opacity="0.32"/>
+                    <rect x="9" y="9" width="14" height="14" rx="2.5" fill="#FFFFFF" opacity="0.6"/>
+                    <rect x="12" y="12" width="14" height="14" rx="2.5" fill="#FFFFFF"/>
+                </svg>
                 <span class="text-sm font-semibold">SiteArchive</span>
             </a>
 

@@ -28,6 +28,9 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('SiteArchive')
+            ->brandLogo(asset('brand-mark.svg'))   // 3 layered rounded squares, brand purple
+            ->brandLogoHeight('1.75rem')           // sits comfortably next to the wordmark
+            ->favicon(asset('favicon.svg'))
             ->darkMode(true)                       // dark/light toggle in top bar
             ->sidebarCollapsibleOnDesktop()
             ->spa()                                // faster nav, fewer full reloads
