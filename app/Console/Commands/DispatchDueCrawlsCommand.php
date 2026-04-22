@@ -6,6 +6,7 @@ use App\Enums\CrawlStatus;
 use App\Enums\TriggerSource;
 use App\Models\CrawlRun;
 use App\Models\Site;
+use App\Support\DetachedCrawl;
 use Illuminate\Console\Command;
 
 /**
@@ -22,9 +23,10 @@ use Illuminate\Console\Command;
  *      this site while the crawl is still in flight
  *   2. create a CrawlRun row in Running state immediately, so the UI
  *      reflects "crawl in progress" on the next dashboard poll
- *   3. popen + start /B (Windows) or & (Linux) to spawn a detached
- *      `php artisan crawl:run {siteId} --run-id={runId}` — the child
- *      outlives this command's exit and runs independently
+ *   3. DetachedCrawl::spawn() to fire `php artisan crawl:run {siteId}
+ *      --run-id={runId}` as a detached background process — the child
+ *      outlives this command's exit and runs independently with no
+ *      console window flash on Windows
  *
  * If a crawl fails, next_run_at stays null and the site shows
  * "— not scheduled —" in the admin. Admins then investigate and either
@@ -64,36 +66,11 @@ class DispatchDueCrawlsCommand extends Command
                 'started_at'   => now(),
             ]);
 
-            $this->spawnDetached($site->id, $run->id);
+            DetachedCrawl::spawn($site->id, $run->id);
 
             $this->info("[crawl:dispatch-due] spawned crawl for #{$site->id} {$site->name} (run {$run->id})");
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Fire `php artisan crawl:run {siteId} --run-id={runId}` as a fully
-     * detached process that outlives this command's exit.
-     *
-     * Windows: uses `start /B` so the spawned PHP is not a child of the
-     *          Task Scheduler's cmd — it keeps running once the minute
-     *          tick completes.
-     * Linux:   uses `&` for the same effect.
-     *
-     * Output is redirected to the null device; crawl progress is visible
-     * via CrawlRun rows in the DB, no log file needed.
-     */
-    protected function spawnDetached(int $siteId, int $runId): void
-    {
-        $phpBin  = escapeshellarg(PHP_BINARY);
-        $artisan = escapeshellarg(base_path('artisan'));
-        $args    = sprintf('crawl:run %d --run-id=%d', $siteId, $runId);
-
-        $cmd = PHP_OS_FAMILY === 'Windows'
-            ? "start /B \"\" $phpBin $artisan $args > NUL 2>&1"
-            : "$phpBin $artisan $args > /dev/null 2>&1 &";
-
-        pclose(popen($cmd, 'r'));
     }
 }

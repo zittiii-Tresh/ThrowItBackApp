@@ -6,6 +6,7 @@ use App\Enums\FrequencyType;
 use App\Enums\NotifyChannel;
 use App\Filament\Resources\SiteResource\Pages;
 use App\Models\Site;
+use App\Support\DetachedCrawl;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Form;
@@ -249,21 +250,9 @@ class SiteResource extends Resource
                         ]);
 
                         // Fully detached subprocess that keeps running after
-                        // the Filament request returns. Symfony's Process::start
-                        // doesn't detach cleanly on Windows — the child gets
-                        // orphaned when PHP's web request ends. popen + Windows'
-                        // `start /B` (or `&` on Linux) is the reliable path.
-                        $phpBin = escapeshellarg(PHP_BINARY);
-                        $artisan = escapeshellarg(base_path('artisan'));
-                        $args = sprintf('crawl:run %d --run-id=%d', $record->id, $run->id);
-
-                        if (PHP_OS_FAMILY === 'Windows') {
-                            $cmd = "start /B \"\" $phpBin $artisan $args > NUL 2>&1";
-                        } else {
-                            $cmd = "$phpBin $artisan $args > /dev/null 2>&1 &";
-                        }
-
-                        pclose(popen($cmd, 'r'));
+                        // the Filament request returns. See DetachedCrawl for
+                        // the Windows console-flash quirks this avoids.
+                        DetachedCrawl::spawn($record->id, $run->id);
                     })
                     ->successNotificationTitle(fn (Site $record) => "Crawling {$record->name} — watch progress in the Status column"),
 

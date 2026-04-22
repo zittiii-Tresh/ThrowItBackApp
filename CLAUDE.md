@@ -83,12 +83,20 @@ Execute:    C:\laragon\bin\php\php-8.3.30-Win32-vs16-x64\php-win.exe
 Arguments:  artisan schedule:run
 Cwd:        C:\Users\sitesatscale\Documents\SAS SiteArchive\site-archive
 Trigger:    every 1 minute, repeats 3650 days
-Principal:  current user, Interactive logon, Limited privileges
+Principal:  current user, **S4U** logon, Limited privileges
 ```
 
-Registered via `Register-ScheduledTask` in PowerShell (not in repo — it's a
-Windows config). Re-register command is preserved in the commit message of
-`b6f1759` if the task ever needs rebuilding.
+S4U (Service-for-User) is critical: with `InteractiveToken` Windows attaches a
+conhost.exe to the spawned php-win.exe and a black console flashes every minute
+even though php-win itself is windowless. S4U runs the task in the user's
+account context without an interactive desktop session, so no console is ever
+attached. Modifying the principal requires an elevated PowerShell:
+
+```powershell
+schtasks /Create /TN "SiteArchive Scheduler" /XML <task.xml> /F
+```
+
+The original registration is in commit `b6f1759` (was Interactive); the silent-flash fix is in this session's work.
 
 ### Real sites in DB
 
@@ -161,12 +169,21 @@ crawls, partial crawls, storage warnings, "site added" events are all still
 logged to `system_events` (potential future activity log) but kept out of
 the feed. User-requested.
 
-### 5. php-win.exe over php.exe for scheduled runs
+### 5. Silent crawl spawns on Windows — three layers
 
-Windows Task Scheduler fires `php-win.exe` (the windowless PHP subsystem),
-not `php.exe`, so no console window flashes. `PHP_BINARY` inside the
-running process is `php-win.exe`, so detached crawl spawns also inherit it
-and are silent.
+Stacked because any one of them alone leaks a console window:
+
+1. **Task Scheduler uses S4U logon** (not InteractiveToken) — otherwise
+   Windows attaches conhost.exe to the spawned php-win.exe per tick.
+2. **php-win.exe** (windowless PHP subsystem) for both schedule:run and
+   the detached `crawl:run` children. `app/Support/DetachedCrawl.php`
+   forces `php-win.exe` even when PHP_BINARY is `php.exe` (e.g. the
+   Filament "Crawl now" path running under `artisan serve`).
+3. **proc_open with `bypass_shell => true`** for the detach — `popen()`
+   on Windows always wraps in `cmd.exe /c …`, and that cmd needs a
+   console. `proc_open` with `bypass_shell` calls CreateProcess directly
+   on php-win, no shell, no console. proc_close is intentionally NOT
+   called — it would block waiting for the child to exit.
 
 ---
 
