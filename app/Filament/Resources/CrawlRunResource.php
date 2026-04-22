@@ -37,28 +37,33 @@ class CrawlRunResource extends Resource
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
+                // Every column is centered so headers + values sit under each
+                // other consistently — per user request. Numeric and text
+                // columns alike use ->alignment('center').
                 Tables\Columns\TextColumn::make('site.name')
                     ->label('Site')
                     ->weight('semibold')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('started_at')
                     ->label('Started')
                     ->dateTime('M j, H:i')
                     ->sortable()
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('pages_crawled')
                     ->label('Pages')
                     ->numeric()
-                    ->alignment('end')
+                    ->alignment('center')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('assets_downloaded')
                     ->label('Assets')
                     ->numeric()
-                    ->alignment('end')
+                    ->alignment('center')
                     ->toggleable(),
 
                 // Live status: spinner + progress bar while Running, regular
@@ -66,17 +71,19 @@ class CrawlRunResource extends Resource
                 // list — but here passes the CrawlRun as $getRecord().
                 Tables\Columns\ViewColumn::make('liveStatus')
                     ->label('Status')
-                    ->view('filament.columns.crawl-run-status'),
+                    ->view('filament.columns.crawl-run-status')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('triggered_by')
                     ->label('Triggered')
                     ->formatStateUsing(fn (TriggerSource $state) => $state->label())
+                    ->alignment('center')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('duration')
                     ->label('Duration')
                     ->state(fn (CrawlRun $r): string => $r->durationHuman())
-                    ->alignment('end')
+                    ->alignment('center')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('storage_bytes')
@@ -84,8 +91,8 @@ class CrawlRunResource extends Resource
                     ->state(fn (CrawlRun $r) => $r->storage_bytes > 0
                         ? number_format($r->storage_bytes / 1024 / 1024, 1) . ' MB'
                         : '—')
-                    ->alignment('end')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->alignment('center')
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('status')

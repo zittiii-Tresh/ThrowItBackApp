@@ -37,11 +37,11 @@
             </a>
 
             <nav class="flex items-center gap-6 text-sm text-surface-600 dark:text-surface-400">
+                {{-- Home is the only universally-accessible link in the user
+                     archive. Browse/Viewer/Compare need a site or snapshot
+                     context, so they're reached by clicking a chip on Home
+                     or a link in Browse — not via the header. --}}
                 <a href="{{ route('home') }}" class="hover:text-surface-900 dark:hover:text-surface-100">Home</a>
-                {{-- Browse / Viewer / Compare links come online in Phase 6. --}}
-                <a href="#" class="pointer-events-none opacity-40">Browse</a>
-                <a href="#" class="pointer-events-none opacity-40">Viewer</a>
-                <a href="#" class="pointer-events-none opacity-40">Compare</a>
 
                 <button type="button"
                         onclick="toggleTheme()"

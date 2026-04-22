@@ -165,19 +165,38 @@ class SiteResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->weight('semibold')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('base_url')
                     ->color('gray')
                     ->searchable()
-                    ->limit(50),
+                    ->limit(50)
+                    ->alignment('center'),
 
                 // Schedule column uses the model helper — "Every 2 days", "MWF", etc.
                 Tables\Columns\TextColumn::make('schedule')
                     ->label('Schedule')
                     ->state(fn (Site $r): string => $r->describeFrequency())
                     ->badge()
-                    ->color('primary'),
+                    ->color('primary')
+                    ->alignment('center'),
+
+                // Total bytes archived across every crawl run for this site.
+                // Sums at query time — table is small, no need to cache.
+                Tables\Columns\TextColumn::make('storage_total')
+                    ->label('Storage')
+                    ->state(function (Site $r): string {
+                        $bytes = (int) $r->crawlRuns()->sum('storage_bytes');
+                        if ($bytes === 0) return '—';
+                        return match (true) {
+                            $bytes < 1024           => $bytes . ' B',
+                            $bytes < 1024 ** 2      => number_format($bytes / 1024, 1) . ' KB',
+                            $bytes < 1024 ** 3      => number_format($bytes / 1024 ** 2, 1) . ' MB',
+                            default                 => number_format($bytes / 1024 ** 3, 2) . ' GB',
+                        };
+                    })
+                    ->alignment('center'),
 
                 // Live status column — shows an animated progress bar while a
                 // crawl is in flight, or the last run's status + time-ago when
@@ -185,11 +204,13 @@ class SiteResource extends Resource
                 // and kept fresh by the table's ->poll() below.
                 Tables\Columns\ViewColumn::make('crawlStatus')
                     ->label('Status')
-                    ->view('filament.columns.crawl-status'),
+                    ->view('filament.columns.crawl-status')
+                    ->alignment('center'),
 
                 Tables\Columns\ToggleColumn::make('is_active')
                     ->label('Active')
-                    ->onColor('success'),
+                    ->onColor('success')
+                    ->alignment('center'),
             ])
             ->filters([
                 TernaryFilter::make('is_active')
