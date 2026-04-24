@@ -12,6 +12,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 /**
  * Admin user management — a sidebar tab where existing admins can invite
@@ -55,9 +56,13 @@ class UserResource extends Resource
                     Forms\Components\TextInput::make('password')
                         ->password()
                         ->revealable()
-                        ->minLength(8)
                         ->confirmed()
-                        ->helperText('Min 8 characters. Leave blank on edit to keep current password.')
+                        // Use the project-wide strong defaults defined in
+                        // AppServiceProvider::configurePasswordDefaults()
+                        // — min 12, mixed case, numbers, symbols, and not
+                        // present in any known breach dataset.
+                        ->rule(Password::default())
+                        ->helperText('Min 12 chars, mixed case, numbers, symbols. Checked against known breaches. Leave blank on edit to keep current password.')
                         // Required only when creating; optional on edit.
                         ->required(fn (string $operation) => $operation === 'create')
                         // Hash if provided; skip the column entirely when blank.
@@ -81,11 +86,13 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->weight('semibold')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('email')
                     ->copyable()
-                    ->searchable(),
+                    ->searchable()
+                    ->alignment('center'),
 
                 Tables\Columns\IconColumn::make('email_verified_at')
                     ->label('Verified')
@@ -94,12 +101,14 @@ class UserResource extends Resource
                     ->trueIcon('heroicon-o-check-badge')
                     ->falseIcon('heroicon-o-clock')
                     ->trueColor('success')
-                    ->falseColor('warning'),
+                    ->falseColor('warning')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Added')
                     ->since()
-                    ->sortable(),
+                    ->sortable()
+                    ->alignment('center'),
             ])
             ->actions([
                 // Resend verification — only visible on unverified rows.

@@ -43,6 +43,7 @@ class Site extends Model
         'is_active',
         'last_crawled_at',
         'next_run_at',
+        'retention_months',  // null = use global default; 0 = keep forever; 1-12 = months
     ];
 
     protected function casts(): array
@@ -56,7 +57,42 @@ class Site extends Model
             'is_active'        => 'boolean',
             'last_crawled_at'  => 'datetime',
             'next_run_at'      => 'datetime',
+            'retention_months' => 'integer',
         ];
+    }
+
+    /**
+     * Resolve the effective retention for this site:
+     *   - null     → falls back to Setting::current()->default_retention_months
+     *   - 0        → keep forever (returns null to mean "no cutoff")
+     *   - 1..12    → that many months
+     *
+     * Returns the cutoff Carbon date — anything older should be deleted —
+     * or null if the site keeps history forever.
+     */
+    public function retentionCutoff(): ?\Illuminate\Support\Carbon
+    {
+        $months = $this->retention_months;
+        if ($months === null) {
+            $months = (int) (Setting::current()->default_retention_months ?? 3);
+        }
+        if ($months <= 0) {
+            return null; // keep forever
+        }
+        return now()->subMonths($months);
+    }
+
+    /** Human label for the dashboard / site form. */
+    public function retentionLabel(): string
+    {
+        if ($this->retention_months === null) {
+            $default = (int) (Setting::current()->default_retention_months ?? 3);
+            return "Use default ({$default} months)";
+        }
+        if ($this->retention_months === 0) {
+            return 'Keep forever';
+        }
+        return "Keep {$this->retention_months} month" . ($this->retention_months === 1 ? '' : 's');
     }
 
     /**

@@ -136,8 +136,51 @@ class CrawlRunResource extends Resource
                     })
                     ->openUrlInNewTab()
                     ->visible(fn (CrawlRun $r) => $r->snapshots()->exists()),
+
+                // Move to Trash. Soft-deletes the row — recoverable for the
+                // trash retention window (default 7 days). Modal previews
+                // impact: how many unique vs shared assets, MB to be freed.
+                Tables\Actions\Action::make('trash')
+                    ->label('Delete')
+                    ->icon('heroicon-m-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (CrawlRun $r) => "Delete this crawl run?")
+                    ->modalDescription(fn (CrawlRun $r) => static::buildDeleteImpactDescription($r))
+                    ->modalSubmitActionLabel('Move to Trash')
+                    ->action(function (CrawlRun $r): void {
+                        $r->delete(); // soft-delete via SoftDeletes
+                        \Filament\Notifications\Notification::make()
+                            ->title("Crawl moved to Trash")
+                            ->body('Recoverable for 7 days. Disk space frees on the next trash purge.')
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn (CrawlRun $r) => $r->status->value !== 'running'),
             ])
-            ->bulkActions([])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('trashSelected')
+                        ->label('Delete selected')
+                        ->icon('heroicon-m-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete selected crawl runs?')
+                        ->modalDescription(fn ($records) => sprintf(
+                            'Will move %d crawl run(s) to Trash. Recoverable for 7 days. Estimated to free ~%s of disk space when the trash purges.',
+                            $records->count(),
+                            static::humanBytes((int) $records->sum('storage_bytes')),
+                        ))
+                        ->modalSubmitActionLabel('Move to Trash')
+                        ->action(function ($records): void {
+                            CrawlRun::whereIn('id', $records->pluck('id'))->delete();
+                            \Filament\Notifications\Notification::make()
+                                ->title("{$records->count()} crawls moved to Trash")
+                                ->success()
+                                ->send();
+                        }),
+                ]),
+            ])
             ->emptyStateHeading('No crawl runs yet')
             ->emptyStateDescription('Crawls dispatched by the scheduler or manual triggers will appear here.')
             ->emptyStateIcon('heroicon-o-clock')
@@ -151,6 +194,63 @@ class CrawlRunResource extends Resource
         return [
             'index' => Pages\ListCrawlRuns::route('/'),
         ];
+    }
+
+    /**
+     * Build the per-row delete confirmation body. Computes how many of
+     * this run's assets are unique to it (will free disk) vs shared
+     * with other crawls (will keep their pool entries because ref_count
+     * stays > 0).
+     */
+    protected static function buildDeleteImpactDescription(CrawlRun $r): string
+    {
+        $snapshotIds = \App\Models\Snapshot::where('crawl_run_id', $r->id)->pluck('id');
+
+        $usedFileIds = \App\Models\Asset::whereIn('snapshot_id', $snapshotIds)
+            ->whereNotNull('asset_file_id')
+            ->pluck('asset_file_id')
+            ->unique();
+
+        // A pool file is "unique to this crawl" when its ref_count equals
+        // the number of THIS run's assets pointing at it.
+        $uniqueCount = 0;
+        $sharedCount = 0;
+        $bytesToFree = 0;
+        foreach ($usedFileIds as $fileId) {
+            $assetFile = \App\Models\AssetFile::find($fileId);
+            if (! $assetFile) continue;
+
+            $thisRunRefs = \App\Models\Asset::whereIn('snapshot_id', $snapshotIds)
+                ->where('asset_file_id', $fileId)
+                ->count();
+
+            if ($assetFile->ref_count - $thisRunRefs <= 0) {
+                $uniqueCount++;
+                $bytesToFree += $assetFile->size_bytes;
+            } else {
+                $sharedCount++;
+            }
+        }
+
+        $age = $r->created_at?->diffForHumans() ?? '—';
+        return sprintf(
+            "Site: %s\nCaptured: %s (%s)\nPages: %d\nAssets: %d unique to this crawl, %d shared with others\nDisk freed when trash purges: ~%s\n\nRecoverable from Trash for 7 days.",
+            $r->site->name ?? '—',
+            $r->started_at?->format('M j, Y g:i A') ?? '—',
+            $age,
+            $r->pages_crawled,
+            $uniqueCount,
+            $sharedCount,
+            static::humanBytes($bytesToFree),
+        );
+    }
+
+    protected static function humanBytes(int $b): string
+    {
+        if ($b < 1024)         return $b . ' B';
+        if ($b < 1024 ** 2)    return round($b / 1024, 1) . ' KB';
+        if ($b < 1024 ** 3)    return round($b / 1024 ** 2, 1) . ' MB';
+        return round($b / 1024 ** 3, 2) . ' GB';
     }
 
     // Explicitly deny the create/edit routes — crawl runs are machine-generated.

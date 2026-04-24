@@ -22,10 +22,15 @@
     @endif
 
     @if ($events->isEmpty())
-        <div class="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center dark:border-gray-700 dark:bg-gray-900">
-            <x-filament::icon icon="heroicon-o-check-circle" class="mx-auto h-10 w-10 text-emerald-500"/>
-            <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">All healthy</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        {{-- Empty state styled to match Filament's TableWidget empty state
+             (e.g. "Upcoming today" on the Dashboard): circular icon halo,
+             generous padding, soft secondary description text. --}}
+        <div class="sa-notify-card rounded-xl text-center" style="padding: 4rem 2.5rem;">
+            <div class="sa-empty-icon-halo">
+                <x-filament::icon icon="heroicon-o-check-circle" class="text-emerald-300"/>
+            </div>
+            <h3 style="margin-top: 1.25rem;" class="text-base font-semibold text-emerald-300">All healthy</h3>
+            <p style="margin-top: 0.5rem; padding-left: 2rem; padding-right: 2rem;" class="text-sm text-gray-500 dark:text-gray-400">
                 No failed crawls. Only crawls that fail will appear here — successes are silent.
             </p>
         </div>
@@ -55,9 +60,8 @@
 
                 <li
                     wire:click="markRead({{ $event->id }})"
-                    class="group flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition
+                    class="sa-notify-item group flex cursor-pointer items-start gap-3 rounded-xl border shadow-sm transition
                            hover:ring-2 hover:ring-offset-0 hover:shadow-md
-                           dark:border-gray-800 dark:bg-gray-900
                            {{ $ringColor }}"
                 >
                     <span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full {{ $dotColor }} {{ $isRead ? 'opacity-50' : '' }}"></span>

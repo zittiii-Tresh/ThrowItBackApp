@@ -29,17 +29,20 @@ class UpcomingCrawls extends TableWidget
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Site')
-                    ->weight('semibold'),
+                    ->weight('semibold')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('next_run_at')
                     ->label('Scheduled at')
-                    ->dateTime('H:i'),
+                    ->dateTime('H:i')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('frequency')
                     ->label('Frequency')
                     ->state(fn (Site $s) => $s->describeFrequency())
                     ->badge()
-                    ->color('primary'),
+                    ->color('primary')
+                    ->alignment('center'),
             ])
             ->emptyStateHeading('Nothing scheduled for today')
             ->emptyStateDescription('Active sites will appear here when their next run falls on this date.')

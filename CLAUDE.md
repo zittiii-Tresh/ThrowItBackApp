@@ -123,6 +123,23 @@ MAIL_PASSWORD=<in .env — gitignored>
 MAIL_FROM_ADDRESS=sas@sitearchive.com    # Gmail "Send mail as" alias
 ```
 
+### Pre-launch security checklist (do BEFORE going public)
+
+The codebase is already hardened (CSP, HSTS, secure cookies, rate-limited
+login, sandboxed iframe, strong password policy — see "Architectural
+decisions #6"). These are the per-deploy items you must do by hand:
+
+- [ ] `APP_ENV=production` and `APP_DEBUG=false` in production `.env`
+- [ ] `APP_KEY` set (run `php artisan key:generate` once on the server)
+- [ ] `SESSION_SECURE_COOKIE=true` (the .env.example default is `null` for dev)
+- [ ] `APP_URL=https://your-domain.tld` so signed verification links use HTTPS
+- [ ] Rotate the seeded `admin@sitesatscale.com / password` to a strong password,
+      or delete that user once a real admin has been created
+- [ ] TLS terminator in front (Cloudflare / Forge / Nginx) — the app trusts
+      `X-Forwarded-Proto` so `$request->secure()` works correctly
+- [ ] Verify `composer audit` and `npm audit` are still clean
+- [ ] Confirm `storage/logs/laravel.log` is not world-readable on the host
+
 ### Performance knobs (config/archive.php → .env overrides)
 
 ```
@@ -179,6 +196,37 @@ the user asked for.
 crawls, partial crawls, storage warnings, "site added" events are all still
 logged to `system_events` (potential future activity log) but kept out of
 the feed. User-requested.
+
+### 6. Security hardening — defence in depth, do not weaken without thinking
+
+Stacked because each layer covers a different attack class:
+
+1. **`SecurityHeaders` middleware** (`app/Http/Middleware/SecurityHeaders.php`)
+   appended to the `web` group in `bootstrap/app.php`. Sends CSP, HSTS
+   (production+HTTPS only), X-Frame-Options, X-Content-Type-Options,
+   Referrer-Policy, Permissions-Policy. Skips the archive playback
+   routes — they get their own much stricter CSP from the controller.
+2. **Archive iframe sandbox** without `allow-same-origin` (see the comment
+   in `archive-viewer.blade.php`). Critical: archived HTML is third-party
+   content that may contain malicious JS. The sandbox gives it an opaque
+   origin so it cannot read this app's cookies/localStorage, call our
+   APIs as the logged-in admin, or escape the iframe.
+3. **Strict per-snapshot CSP** in `ArchiveController::snapshot()` —
+   `form-action 'none'`, `base-uri 'none'`, `object-src 'none'` so even
+   if the iframe sandbox is somehow bypassed, captured forms can't POST
+   anywhere and `<base>` injection is neutralised.
+4. **Rate-limited login** — `throttle:filament-login` (5/min/IP) on
+   `/admin/login` via `AdminPanelProvider::middleware()`. Limiter named
+   in `AppServiceProvider::configureRateLimiters()`.
+5. **Strong password defaults** — `Password::defaults()` in
+   AppServiceProvider sets min 12 chars, mixed case, numbers, symbols,
+   plus a haveibeenpwned breach check. Used by `UserResource` form.
+6. **HTTPS everywhere in production** — `URL::forceScheme('https')` in
+   `bootstrap/app.php` `booted()` callback. Combined with
+   `trustProxies(at: '*')` for behind-CDN deployments.
+7. **Secure session cookies** — `.env.example` defaults `SESSION_ENCRYPT=true`,
+   `SESSION_HTTP_ONLY=true`, `SESSION_SAME_SITE=lax`, with
+   `SESSION_SECURE_COOKIE=null` (set to `true` in prod `.env`).
 
 ### 5. Silent crawl spawns on Windows — three layers
 

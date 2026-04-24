@@ -3,7 +3,9 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\CrawlStatus;
+use App\Models\AssetFile;
 use App\Models\CrawlRun;
+use App\Models\Setting;
 use App\Models\Site;
 use App\Models\Snapshot;
 use Filament\Widgets\StatsOverviewWidget;
@@ -28,14 +30,24 @@ class DashboardStats extends StatsOverviewWidget
         // Snapshots in the last 30 days across all sites.
         $recentSnapshots = Snapshot::where('created_at', '>=', now()->subDays(30))->count();
 
-        // Total bytes written across all crawl runs, converted to GB/MB.
-        $totalBytes = (int) CrawlRun::sum('storage_bytes');
-        $storageHuman = $totalBytes > 1024 ** 3
-            ? number_format($totalBytes / 1024 ** 3, 1) . ' GB'
-            : number_format($totalBytes / 1024 ** 2, 1) . ' MB';
+        // Real disk usage = pool bytes (deduped) + un-migrated legacy bytes.
+        $poolBytes   = (int) AssetFile::sum('size_bytes');
+        $legacyBytes = (int) \App\Models\Asset::whereNull('asset_file_id')
+            ->where('storage_path', '!=', '')->sum('size_bytes');
+        $totalBytes  = $poolBytes + $legacyBytes;
 
-        // Failed crawls in the last 30 days — highlighted red when non-zero
-        // (proposal PDF explicitly calls this out).
+        // Storage budget (GB) → bytes for the % calc.
+        $budgetGb     = (int) (Setting::current()->storage_limit_gb ?? 50);
+        $budgetBytes  = $budgetGb * 1024 ** 3;
+        $usagePct     = $budgetBytes > 0 ? min(100, round($totalBytes / $budgetBytes * 100)) : 0;
+
+        // Color tier: green < 70%, amber 70-89%, red 90%+.
+        $storageColor = $usagePct >= 90 ? 'danger'
+                      : ($usagePct >= 70 ? 'warning' : 'success');
+
+        $storageHuman = $this->humanBytes($totalBytes);
+
+        // Failed crawls in the last 30 days — highlighted red when non-zero.
         $failedCount = CrawlRun::where('status', CrawlStatus::Failed)
             ->where('created_at', '>=', now()->subDays(30))
             ->count();
@@ -52,14 +64,22 @@ class DashboardStats extends StatsOverviewWidget
                 ->color('info'),
 
             Stat::make('Storage used', $storageHuman)
-                ->description('All archived content')
+                ->description("{$usagePct}% of {$budgetGb} GB budget")
                 ->descriptionIcon('heroicon-m-circle-stack')
-                ->color('success'),
+                ->color($storageColor),
 
             Stat::make('Failed crawls', $failedCount)
                 ->description($failedCount > 0 ? 'Needs attention' : 'All healthy')
                 ->descriptionIcon($failedCount > 0 ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-check-circle')
                 ->color($failedCount > 0 ? 'danger' : 'success'),
         ];
+    }
+
+    protected function humanBytes(int $b): string
+    {
+        if ($b < 1024)         return $b . ' B';
+        if ($b < 1024 ** 2)    return round($b / 1024, 1) . ' KB';
+        if ($b < 1024 ** 3)    return round($b / 1024 ** 2, 1) . ' MB';
+        return round($b / 1024 ** 3, 2) . ' GB';
     }
 }

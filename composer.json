@@ -13,6 +13,7 @@
         "laravel/tinker": "^2.9",
         "predis/predis": "*",
         "sebastian/diff": "^6.0",
+        "spatie/browsershot": "^5.2",
         "spatie/crawler": "*"
     },
     "require-dev": {

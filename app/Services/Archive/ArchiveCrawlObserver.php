@@ -30,7 +30,10 @@ class ArchiveCrawlObserver extends CrawlObserver
         protected CrawlRun $run,
         protected HtmlRewriter $rewriter,
         protected AssetDownloader $downloader,
-    ) {}
+        protected ?PageRenderer $renderer = null,
+    ) {
+        $this->renderer ??= app(PageRenderer::class);
+    }
 
     /**
      * Spatie Crawler calls this when a page is fetched successfully.
@@ -53,6 +56,18 @@ class ArchiveCrawlObserver extends CrawlObserver
 
         $statusCode = $response->getStatusCode();
         $body       = (string) $response->getBody();
+
+        // ★ Browsershot pass: re-render in real Chromium and use the
+        // post-render DOM as the body. Captures JS-injected content,
+        // resolved CSS variables, lazy images that fired, etc — much
+        // closer to "what the user actually sees" than the raw response.
+        // Falls back to the original body if rendering fails.
+        if ($this->renderer->isBrowsershotEnabled()) {
+            $rendered = $this->renderer->renderHtml($urlString);
+            if ($rendered !== null) {
+                $body = $rendered;
+            }
+        }
 
         // Create the Snapshot row first — we need its ID to build the
         // /archive/asset/{id}/{hash} URLs the rewriter emits.

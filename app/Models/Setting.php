@@ -26,6 +26,9 @@ class Setting extends Model
         'storage_driver',
         'retention_policy',
         'storage_limit_gb',
+        'default_retention_months',
+        'cleanup_hour',
+        'cleanup_last_run_at',
         'email_recipients',
         'slack_webhook_url',
         'notify_on_crawl_failure',
@@ -42,6 +45,8 @@ class Setting extends Model
         'storage_driver'             => 'local',
         'retention_policy'           => 'all',
         'storage_limit_gb'           => 50,
+        'default_retention_months'   => 3,
+        'cleanup_hour'               => 3,
         'notify_on_crawl_failure'    => true,
         'notify_on_storage_warning'  => true,
         'notify_on_crawl_success'    => false,
@@ -51,6 +56,9 @@ class Setting extends Model
     {
         return [
             'storage_limit_gb'          => 'integer',
+            'default_retention_months'  => 'integer',
+            'cleanup_hour'              => 'integer',
+            'cleanup_last_run_at'       => 'datetime',
             'notify_on_crawl_failure'   => 'boolean',
             'notify_on_storage_warning' => 'boolean',
             'notify_on_crawl_success'   => 'boolean',

@@ -45,6 +45,22 @@ class ArchiveController extends Controller
             'Content-Type'  => 'text/html; charset=utf-8',
             'Cache-Control' => 'no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
+            // Strict CSP for captured third-party HTML. The iframe sandbox
+            // already prevents same-origin access; this CSP is defense-in-
+            // depth — restricts what the page can load, blocks framebusting
+            // attempts, blocks plugins, and stops it from re-framing us.
+            // Asset URLs we serve start with /archive/asset/... on the same
+            // origin, so 'self' covers them.
+            'Content-Security-Policy' => implode('; ', [
+                "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:",
+                "img-src 'self' data: blob:",
+                "media-src 'self' data: blob:",
+                "font-src 'self' data:",
+                "frame-ancestors 'self'",  // only THIS app may frame archived snapshots
+                "form-action 'none'",      // archived forms can't POST anywhere
+                "base-uri 'none'",         // archived <base> tag is ignored
+                "object-src 'none'",       // no Flash/Java applets
+            ]),
         ]);
     }
 
@@ -142,18 +158,26 @@ class ArchiveController extends Controller
             ]);
         }
 
-        $asset = Asset::where('snapshot_id', $snapshot->id)
+        // Eager-load the dedup pool entry so the resolver below doesn't
+        // do a second query.
+        $asset = Asset::with('assetFile')
+            ->where('snapshot_id', $snapshot->id)
             ->whereRaw('SHA1(url) = ?', [$hash])
             ->first();
 
-        abort_unless($asset && $asset->storage_path !== '', 404);
+        abort_unless($asset !== null, 404);
 
-        if (! Storage::disk('archive')->exists($asset->storage_path)) {
+        // Resolve through the pool first (post-migration assets), falling
+        // back to the legacy per-run storage_path for un-migrated rows.
+        $path = $asset->effectiveStoragePath();
+        abort_unless($path !== null && $path !== '', 404);
+
+        if (! Storage::disk('archive')->exists($path)) {
             abort(404, 'Asset missing on disk.');
         }
 
         // Stream the binary so large images/videos don't balloon PHP memory.
-        return Storage::disk('archive')->response($asset->storage_path, null, [
+        return Storage::disk('archive')->response($path, null, [
             'Content-Type'  => $asset->mime_type ?: 'application/octet-stream',
             'Cache-Control' => $cacheControl,
             'ETag'          => $etag,

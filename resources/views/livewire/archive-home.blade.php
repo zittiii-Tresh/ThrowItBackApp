@@ -9,9 +9,9 @@
     </div>
 
     <section class="relative mx-auto flex w-full max-w-3xl flex-col items-center px-6 py-10 text-center">
-        <span class="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300">
-            Internal Tool · Sites at Scale
-        </span>
+        <img src="{{ asset('sas-logo.svg') }}"
+             alt="Sites at Scale"
+             class="mb-6 h-11 w-auto">
 
         <h1 class="text-4xl font-semibold tracking-tight text-surface-900 dark:text-surface-100 sm:text-5xl">
             Browse past versions of
@@ -25,16 +25,12 @@
         {{-- Search bar with live autocomplete --}}
         <form wire:submit="submit" class="mt-10 w-full max-w-2xl">
             <div class="relative">
-                <svg class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-surface-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-
                 <input
                     type="text"
                     wire:model.live.debounce.300ms="query"
-                    placeholder="Enter a URL — e.g. acme.com or acme.com/about"
+                    placeholder="Enter a URL"
                     autofocus
-                    class="w-full rounded-xl border border-surface-200 bg-white/80 py-3.5 pl-12 pr-28 text-sm text-surface-900 shadow-sm backdrop-blur-sm transition
+                    class="w-full rounded-xl border border-surface-200 bg-white/80 py-3.5 pl-5 pr-28 text-sm text-surface-900 shadow-sm backdrop-blur-sm transition
                            placeholder:text-surface-400
                            focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30
                            dark:border-surface-800 dark:bg-surface-900/80 dark:text-surface-100 dark:placeholder:text-surface-500"

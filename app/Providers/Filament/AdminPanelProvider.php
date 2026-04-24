@@ -10,7 +10,9 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
+use Illuminate\Support\Facades\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -43,6 +45,13 @@ class AdminPanelProvider extends PanelProvider
                 'success' => Color::Emerald,
                 'info'    => Color::Sky,
             ])
+            // Custom theme overlay — softer light-mode text + subtle purple
+            // gradient backgrounds/borders + centered table cells. Loaded as
+            // an inline <style> in <head> so no Vite rebuild is needed.
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): string => View::make('filament.admin-theme')->render(),
+            )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -64,6 +73,9 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                // Brute-force protection on /admin/login — 5 attempts per
+                // minute per IP. Limiter defined in AppServiceProvider.
+                'throttle:filament-login',
             ])
             ->authMiddleware([
                 Authenticate::class,

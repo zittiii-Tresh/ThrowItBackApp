@@ -13,12 +13,72 @@
         @apply antialiased;
     }
 
+    /* -------------------------------------------------------------------------
+       Body — layered purple-tinted radial gradients in both modes. Subtle
+       enough to read as "atmosphere" behind content, punchy enough that the
+       page no longer looks flat. background-attachment: fixed so scrolling
+       doesn't pull the gradient out of frame.
+       ------------------------------------------------------------------------- */
     body {
-        @apply bg-white text-surface-900;
+        @apply text-surface-900;
+        background:
+            radial-gradient(ellipse 1100px 600px at 12% -5%,  rgba(193, 186, 238, 0.55), transparent 55%),
+            radial-gradient(ellipse 900px 500px  at 95% 25%,  rgba(232, 200, 246, 0.40), transparent 55%),
+            radial-gradient(ellipse 1000px 700px at 50% 110%, rgba(162, 151, 227, 0.35), transparent 55%),
+            linear-gradient(180deg, #FDFCFF 0%, #F4F0FE 100%);
+        background-attachment: fixed;
     }
 
     html.dark body {
-        @apply bg-surface-950 text-surface-100;
+        @apply text-surface-100;
+        background:
+            radial-gradient(ellipse 1100px 600px at 12% -5%,  rgba(123, 87, 219, 0.30), transparent 55%),
+            radial-gradient(ellipse 900px 500px  at 95% 25%,  rgba(168, 85, 247, 0.22), transparent 55%),
+            radial-gradient(ellipse 1000px 700px at 50% 110%, rgba(83, 74, 183, 0.30), transparent 55%),
+            linear-gradient(180deg, #0B0813 0%, #160E2E 100%);
+        background-attachment: fixed;
+    }
+}
+
+/* =============================================================================
+   Vibrant purple glow on hover for every card-like bordered surface used on
+   the user side. Applies anywhere a `.rounded-{md,lg,xl,2xl}` element also
+   uses one of the surface border tones — i.e. our card pattern. Both modes
+   get the glow; light mode uses a lavender wash, dark mode a punchier violet.
+   ============================================================================= */
+@layer components {
+
+    /* The card "transition target" — match the existing border classes the
+       Livewire views use so we don't have to touch every blade. */
+    .rounded-md.border-surface-200,    .rounded-md.border-surface-800,
+    .rounded-lg.border-surface-200,    .rounded-lg.border-surface-800,
+    .rounded-xl.border-surface-200,    .rounded-xl.border-surface-800,
+    .rounded-2xl.border-surface-200,   .rounded-2xl.border-surface-800 {
+        transition: border-color 250ms ease, box-shadow 350ms ease, transform 250ms ease;
+    }
+
+    /* Light mode — vibrant lavender border + soft purple halo on hover */
+    .rounded-md.border-surface-200:hover,
+    .rounded-lg.border-surface-200:hover,
+    .rounded-xl.border-surface-200:hover,
+    .rounded-2xl.border-surface-200:hover {
+        border-color: #8276D4 !important;  /* brand-400 */
+        box-shadow:
+            0 0 0 1px rgba(130, 118, 212, 0.45),
+            0 8px 28px -6px rgba(123, 87, 219, 0.45),
+            0 0 32px -4px rgba(168, 85, 247, 0.30);
+    }
+
+    /* Dark mode — brighter violet glow, more saturated halo */
+    .rounded-md.border-surface-800:hover,
+    .rounded-lg.border-surface-800:hover,
+    .rounded-xl.border-surface-800:hover,
+    .rounded-2xl.border-surface-800:hover {
+        border-color: #A78BFA !important;  /* punchy violet */
+        box-shadow:
+            0 0 0 1px rgba(167, 139, 250, 0.55),
+            0 12px 40px -8px rgba(124, 58, 237, 0.55),
+            0 0 48px -4px rgba(168, 85, 247, 0.35);
     }
 }
 
@@ -29,19 +89,39 @@
                px-4 py-2 text-sm text-surface-700 transition
                hover:border-brand-400 hover:text-brand-700;
     }
+    .site-chip:hover {
+        box-shadow:
+            0 0 0 1px rgba(130, 118, 212, 0.45),
+            0 6px 20px -4px rgba(123, 87, 219, 0.40);
+    }
 
     html.dark .site-chip {
         @apply border-surface-700 bg-surface-800 text-surface-100
                hover:border-brand-400 hover:bg-surface-700 hover:text-brand-200;
     }
+    html.dark .site-chip:hover {
+        box-shadow:
+            0 0 0 1px rgba(167, 139, 250, 0.55),
+            0 8px 28px -6px rgba(124, 58, 237, 0.55);
+    }
 
-    /* Primary CTA button — matches the purple button in the reference UI */
+    /* Primary CTA button — gradient fill + glow on hover */
     .btn-primary {
         @apply inline-flex items-center justify-center gap-2 rounded-lg
-               bg-brand-600 px-5 py-2.5 text-sm font-medium text-white
-               transition hover:bg-brand-700 focus:outline-none
+               px-5 py-2.5 text-sm font-medium text-white
+               transition focus:outline-none
                focus:ring-2 focus:ring-brand-500 focus:ring-offset-2
                disabled:opacity-50 disabled:pointer-events-none;
+        background-image: linear-gradient(135deg, #6457C4 0%, #534AB7 50%, #443C97 100%);
+        box-shadow: 0 4px 14px -4px rgba(83, 74, 183, 0.55);
+    }
+    .btn-primary:hover {
+        /* Stay put on hover — the glow alone signals interactivity. */
+        background-image: linear-gradient(135deg, #6457C4 0%, #534AB7 50%, #3D3585 100%);
+        box-shadow:
+            0 0 0 1px rgba(167, 139, 250, 0.55),
+            0 10px 32px -4px rgba(124, 58, 237, 0.70),
+            0 0 56px -6px rgba(168, 85, 247, 0.55);
     }
 
     /* -----------------------------------------------------------------------------

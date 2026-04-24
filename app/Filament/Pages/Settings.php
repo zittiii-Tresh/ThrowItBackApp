@@ -52,14 +52,28 @@ class Settings extends Page implements HasForms
                             ->default('local')
                             ->helperText('Local is fine for dev and small deployments. Switch to S3 for production.'),
 
-                        Forms\Components\Select::make('retention_policy')
-                            ->label('Retention policy')
+                        Forms\Components\Select::make('default_retention_months')
+                            ->label('Default retention')
+                            ->helperText('Sites without their own retention setting use this. Older crawls go to Trash; Trash purges 7 days later, freeing disk space.')
                             ->options([
-                                'all'     => 'Keep all snapshots',
-                                '90_days' => 'Keep last 90 days',
-                                '30_days' => 'Keep last 30 days',
+                                1  => 'Keep 1 month',
+                                2  => 'Keep 2 months',
+                                3  => 'Keep 3 months',
+                                6  => 'Keep 6 months',
+                                12 => 'Keep 12 months',
+                                0  => 'Keep forever (never auto-delete)',
                             ])
-                            ->default('all')
+                            ->default(3)
+                            ->native(false)
+                            ->required(),
+
+                        Forms\Components\Select::make('cleanup_hour')
+                            ->label('Nightly cleanup time')
+                            ->helperText('When the daily retention + trash purge jobs run.')
+                            ->options(collect(range(0, 23))
+                                ->mapWithKeys(fn ($h) => [$h => sprintf('%02d:00', $h)])
+                                ->all())
+                            ->default(3)
                             ->native(false),
 
                         Forms\Components\TextInput::make('storage_limit_gb')

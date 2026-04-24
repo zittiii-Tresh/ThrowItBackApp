@@ -96,8 +96,13 @@
         </div>
     </div>
 
-    {{-- Main content area: iframe viewer + optional assets panel --}}
-    <div class="mx-auto flex max-w-7xl gap-4 px-6 py-5">
+    {{-- Main content area: iframe viewer + optional assets panel.
+         Desktop view uses the FULL window width so the archived page
+         renders at true desktop breakpoints (≥992 / 1200 / 1440 px).
+         Tablet/mobile keep the 7xl cap so the simulated viewport sits
+         centered with whitespace around it — feels like a device frame. --}}
+    @php $mainClass = $viewport === 'desktop' ? 'max-w-none' : 'max-w-7xl'; @endphp
+    <div class="mx-auto flex {{ $mainClass }} gap-4 px-6 py-5">
 
         {{-- iframe loads the archived HTML, which points at /archive/asset/...
              OR shows a capture-failed empty state if the fetch came back
@@ -129,10 +134,31 @@
                 </div>
             @else
                 <div class="mx-auto {{ $viewportClass }} overflow-hidden rounded-lg border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-white">
+                    {{--
+                        SECURITY: archived HTML is third-party content that may
+                        contain malicious JS. The sandbox attribute below is
+                        deliberately tight:
+
+                          - allow-scripts:           lets the captured page run JS
+                                                     (otherwise dynamic snapshots
+                                                     wouldn't render correctly)
+                          - allow-forms / popups:    convenience for archived UX
+                          - NOT allow-same-origin:   ★ critical. Without it the
+                                                     captured JS gets a unique
+                                                     opaque origin and CANNOT
+                                                     read cookies/localStorage
+                                                     of THIS site, call our APIs
+                                                     authenticated, or escape
+                                                     the iframe.
+
+                        Combined with the strict CSP set by ArchiveController
+                        on the served HTML, even malicious captures are caged.
+                    --}}
                     <iframe
                         src="{{ url('/archive/snapshot/' . $snapshot->id) }}"
                         class="h-[80vh] w-full"
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                        sandbox="allow-scripts allow-forms allow-popups"
+                        referrerpolicy="no-referrer"
                         title="Archived: {{ $snapshot->url }}"
                     ></iframe>
                 </div>

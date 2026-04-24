@@ -53,20 +53,59 @@ class HtmlRewriter
         libxml_clear_errors();
 
         $xpath = new DOMXPath($doc);
+        // Register the xlink namespace so XPath queries for xlink:href on
+        // <use> elements (older SVG sprite refs) parse correctly.
+        $xpath->registerNamespace('xlink', 'http://www.w3.org/1999/xlink');
         $assetUrls = [];
 
         // The selectors we rewrite. Each tuple: xpath, attribute name.
+        // Order doesn't matter; each runs independently. Comprehensive
+        // coverage matters MORE than ordering — every attribute we miss
+        // here is a broken-image / missing-icon in the playback.
         $targets = [
+            // <img> — standard, srcset, and the lazy-load family.
+            // data-src / data-lazy-src / data-original cover the three most
+            // common WordPress lazy-load plugins (a3 Lazy Load, WP Rocket,
+            // jQuery LazyLoad).
             ['//img[@src]',                                'src'],
-            ['//img[@srcset]',                             'srcset'],   // handled specially below
+            ['//img[@srcset]',                             'srcset'],
+            ['//img[@data-src]',                           'data-src'],
+            ['//img[@data-lazy-src]',                      'data-lazy-src'],
+            ['//img[@data-original]',                      'data-original'],
+            ['//img[@data-srcset]',                        'data-srcset'],
+
+            // <source> — used inside <picture> and <video>.
             ['//source[@src]',                             'src'],
             ['//source[@srcset]',                          'srcset'],
+            ['//source[@data-srcset]',                     'data-srcset'],
+
+            // <link> — stylesheets, all icon variants, preload, manifest.
+            // contains(@rel,"icon") catches "icon", "shortcut icon",
+            // "apple-touch-icon", "mask-icon" in one rule.
             ['//link[@rel="stylesheet"][@href]',           'href'],
             ['//link[contains(@rel,"icon")][@href]',       'href'],
+            ['//link[@rel="manifest"][@href]',             'href'],
             ['//link[@rel="preload"][@href]',              'href'],
+
+            // Scripts + media + their poster frames.
             ['//script[@src]',                             'src'],
             ['//video[@src]',                              'src'],
+            ['//video[@poster]',                           'poster'],
             ['//audio[@src]',                              'src'],
+
+            // SVG sprite refs — modern icon systems (Heroicons, Feather,
+            // custom sprite sheets) reference an external SVG file with
+            // an anchor (#icon-name). Both old (xlink:href) and new (href)
+            // attribute names are still in the wild.
+            ['//*[local-name()="use"][@href]',             'href'],
+            ['//*[local-name()="use"][@xlink:href]',       'xlink:href'],
+
+            // Generic data-bg / data-background — common pattern for slider
+            // hero images and Visual Composer / Elementor section backgrounds
+            // ("set the background via JS after page load").
+            ['//*[@data-bg]',                              'data-bg'],
+            ['//*[@data-background]',                      'data-background'],
+            ['//*[@data-background-image]',               'data-background-image'],
         ];
 
         foreach ($targets as [$query, $attr]) {
@@ -77,25 +116,39 @@ class HtmlRewriter
                     continue;
                 }
 
-                if ($attr === 'srcset') {
+                if (str_ends_with($attr, 'srcset')) {
                     // srcset = "url 1x, url2 2x" — rewrite each URL independently.
                     $rewritten = $this->rewriteSrcset($original, $baseUrl, $snapshotId, $assetUrls);
                     $node->setAttribute($attr, $rewritten);
                     continue;
                 }
 
-                $abs = $this->absoluteUrl($original, $baseUrl);
+                // SVG sprite refs ("/icons.svg#icon-id") and any URL with a
+                // fragment: separate fragment, fetch the bare resource, then
+                // re-append the fragment to the rewritten URL so the browser
+                // still resolves the right symbol inside.
+                $fragment = '';
+                $bareUrl  = $original;
+                if (($hashPos = strpos($original, '#')) !== false) {
+                    $fragment = substr($original, $hashPos);
+                    $bareUrl  = substr($original, 0, $hashPos);
+                    if ($bareUrl === '') {
+                        // Just a fragment with no path — internal anchor, skip.
+                        continue;
+                    }
+                }
+
+                $abs = $this->absoluteUrl($bareUrl, $baseUrl);
                 if ($abs === null) {
                     continue;
                 }
                 $assetUrls[] = $abs;
-                $node->setAttribute($attr, $this->archiveUrlFor($snapshotId, $abs));
+                $node->setAttribute($attr, $this->archiveUrlFor($snapshotId, $abs) . $fragment);
             }
         }
 
         // Inline style="background-image: url(...)" / background:url(...). Common in
-        // portfolio grids (Colorlib templates etc.) where thumbnails are rendered
-        // via CSS rather than <img>. Without this the portfolio images show blank.
+        // portfolio grids, slider hero sections, and section bg overlays.
         foreach ($xpath->query('//*[@style]') as $node) {
             /** @var DOMElement $node */
             $style = $node->getAttribute('style');
@@ -104,6 +157,26 @@ class HtmlRewriter
             }
             $rewritten = $this->rewriteCssUrls($style, $baseUrl, $snapshotId, $assetUrls);
             $node->setAttribute('style', $rewritten);
+        }
+
+        // <style> blocks embedded in the HTML head/body. WordPress themes,
+        // Yoast, Elementor, Visual Composer all dump critical CSS into inline
+        // <style> tags — including @font-face declarations and background-image
+        // URLs. Without this scan, fonts referenced ONLY in inline styles
+        // never get downloaded.
+        foreach ($xpath->query('//style') as $node) {
+            /** @var DOMElement $node */
+            $css = $node->textContent;
+            if (! str_contains(strtolower($css), 'url(')) {
+                continue;
+            }
+            $rewritten = $this->rewriteCssUrls($css, $baseUrl, $snapshotId, $assetUrls);
+            // Replace the text content. Need to clear children first because
+            // some <style> tags may contain CDATA / comments libxml split out.
+            while ($node->firstChild) {
+                $node->removeChild($node->firstChild);
+            }
+            $node->appendChild($doc->createTextNode($rewritten));
         }
 
         // Extract <title>.

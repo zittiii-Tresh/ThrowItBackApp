@@ -33,6 +33,33 @@ return [
         'user_agent' => env('ARCHIVE_CRAWL_USER_AGENT', 'SiteArchiveBot/1.0 (+internal-tool)'),
     ],
 
+    'renderer' => [
+
+        // 'static'      = capture the raw HTML the server returns (fast, ~1-3s/page,
+        //                 misses JS-rendered content)
+        // 'browsershot' = render in real Chromium (slow, ~5-15s/page, captures
+        //                 everything the user actually sees)
+        'mode' => env('ARCHIVE_RENDERER', 'browsershot'),
+
+        // Paths to Node + npm — needed by Browsershot to spawn the
+        // Puppeteer subprocess. Defaults to Laragon's bundled Node 22.
+        'node_binary' => env('ARCHIVE_NODE_BINARY', 'C:/laragon/bin/nodejs/node-v22/node.exe'),
+        'npm_binary'  => env('ARCHIVE_NPM_BINARY',  'C:/laragon/bin/nodejs/node-v22/npm.cmd'),
+
+        // Wait for the rendered page to "settle" before capturing. Lets
+        // JavaScript-loaded fonts, lazy images, etc finish.
+        'wait_until_ms' => (int) env('ARCHIVE_RENDER_WAIT_MS', 1500),
+
+        // Max seconds Chromium gets per page before we give up. Default
+        // generous because cold WP backends can be slow.
+        'timeout_seconds' => (int) env('ARCHIVE_RENDER_TIMEOUT', 60),
+
+        // Viewport size Chromium renders at. 1440x900 = standard desktop;
+        // pages render at their desktop layout, not mobile.
+        'viewport_width'  => (int) env('ARCHIVE_RENDER_VIEWPORT_W', 1440),
+        'viewport_height' => (int) env('ARCHIVE_RENDER_VIEWPORT_H', 900),
+    ],
+
     'playback' => [
 
         // Archived assets are content-addressed by sha1(url) per snapshot —

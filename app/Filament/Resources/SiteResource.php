@@ -95,6 +95,45 @@ class SiteResource extends Resource
                 ])
                 ->columns(1),
 
+            Section::make('Storage retention')
+                ->description('How long to keep this site\'s crawl history. Older crawls are automatically moved to Trash by the nightly cleanup job; trash purges 7 days later. Set to "Keep forever" for clients you never want auto-pruned.')
+                ->schema([
+                    Forms\Components\Select::make('retention_months')
+                        ->label('Retention period')
+                        ->options(function (): array {
+                            $defaultMonths = (int) (\App\Models\Setting::current()->default_retention_months ?? 3);
+                            return [
+                                ''    => "Use default ({$defaultMonths} months)",
+                                '1'   => 'Keep 1 month',
+                                '2'   => 'Keep 2 months',
+                                '3'   => 'Keep 3 months',
+                                '6'   => 'Keep 6 months',
+                                '12'  => 'Keep 12 months',
+                                '0'   => 'Keep forever (never auto-delete)',
+                            ];
+                        })
+                        ->placeholder('Use default')
+                        ->native(false)
+                        ->dehydrateStateUsing(fn ($state) => $state === '' || $state === null ? null : (int) $state),
+
+                    // Read-only "currently storing" line so admins see the
+                    // impact before changing retention. Shows live counts
+                    // for the site they're editing.
+                    Forms\Components\Placeholder::make('storage_summary')
+                        ->label('Currently storing')
+                        ->content(function (?Site $record): string {
+                            if (! $record) return '—';
+                            $count = $record->crawlRuns()->count();
+                            $bytes = (int) $record->crawlRuns()->sum('storage_bytes');
+                            return sprintf(
+                                '%d crawl(s) totaling %s',
+                                $count,
+                                static::humanBytes($bytes),
+                            );
+                        }),
+                ])
+                ->columns(1),
+
             Section::make('Crawl frequency')
                 ->schema([
                     Forms\Components\ToggleButtons::make('frequency_type')
@@ -291,5 +330,14 @@ class SiteResource extends Resource
             'create' => Pages\CreateSite::route('/create'),
             'edit'   => Pages\EditSite::route('/{record}/edit'),
         ];
+    }
+
+    /** Bytes → "1.2 MB" formatter shared across the form + table columns. */
+    protected static function humanBytes(int $b): string
+    {
+        if ($b < 1024)         return $b . ' B';
+        if ($b < 1024 ** 2)    return round($b / 1024, 1) . ' KB';
+        if ($b < 1024 ** 3)    return round($b / 1024 ** 2, 1) . ' MB';
+        return round($b / 1024 ** 3, 2) . ' GB';
     }
 }

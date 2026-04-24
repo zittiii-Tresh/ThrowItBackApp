@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * One execution of CrawlSiteJob against a Site.
@@ -27,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 class CrawlRun extends Model
 {
     use HasFactory;
+    use SoftDeletes;     // soft-delete moves to trash; trash purge frees disk later
 
     protected $fillable = [
         'site_id',

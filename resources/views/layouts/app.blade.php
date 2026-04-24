@@ -36,7 +36,7 @@
 </head>
 <body class="min-h-full flex flex-col font-sans">
 
-    <header class="border-b border-surface-200 dark:border-surface-800">
+    <header class="border-b border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-950">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
             <a href="{{ route('home') }}" class="flex items-center gap-2">
                 {{-- Brand mark — three offset rounded squares = stacked snapshots. --}}
@@ -76,7 +76,7 @@
         @yield('content')
     </main>
 
-    <footer class="border-t border-surface-200 py-6 text-center text-xs text-surface-500 dark:border-surface-800 dark:text-surface-300">
+    <footer class="border-t border-surface-200 bg-white py-6 text-center text-xs text-surface-500 dark:border-surface-800 dark:bg-surface-950 dark:text-surface-300">
         SiteArchive — Internal Tool · Sites at Scale
     </footer>
 

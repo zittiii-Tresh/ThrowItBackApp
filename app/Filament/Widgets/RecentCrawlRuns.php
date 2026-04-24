@@ -31,27 +31,30 @@ class RecentCrawlRuns extends TableWidget
             ->columns([
                 Tables\Columns\TextColumn::make('site.name')
                     ->label('Site')
-                    ->weight('semibold'),
+                    ->weight('semibold')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('started_at')
                     ->label('Started')
                     ->since()
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('pages_crawled')
                     ->label('Pages')
                     ->numeric()
-                    ->alignment('end'),
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (CrawlStatus $state) => $state->label())
-                    ->color(fn (CrawlStatus $state) => $state->color()),
+                    ->color(fn (CrawlStatus $state) => $state->color())
+                    ->alignment('center'),
 
                 Tables\Columns\TextColumn::make('duration')
                     ->label('Duration')
                     ->state(fn (CrawlRun $r) => $r->durationHuman())
-                    ->alignment('end'),
+                    ->alignment('center'),
             ])
             ->paginated(false);
     }

@@ -40,11 +40,7 @@
                 </svg>
                 <span>Crawling</span>
             </span>
-            <span class="text-gray-600 dark:text-gray-400">
-                <span>{{ $latest->pages_crawled }} / {{ $expected }}</span>
-                <span class="mx-1">·</span>
-                <span>{{ $percent }}%</span>
-            </span>
+            <span class="text-gray-600 dark:text-gray-400">{{ $percent }}%</span>
         </div>
         <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
             <div
