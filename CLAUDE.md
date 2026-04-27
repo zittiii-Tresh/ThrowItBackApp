@@ -34,9 +34,10 @@ left off so a fresh Claude pick-up has full context.
 
 ---
 
-## What's built — 20 commits on `main`
+## What's built — `main` branch
 
-Phases roughly track the proposal PDF's 7 admin + 5 user screens.
+Phases roughly track the proposal PDF's 7 admin + 5 user screens, plus
+later work for storage scaling and capture accuracy.
 
 | Phase | Commit | What |
 |---|---|---|
@@ -55,6 +56,12 @@ Phases roughly track the proposal PDF's 7 admin + 5 user screens.
 | Detached fix | `45d0ce8` | `popen('start /B ...')` so crawls actually run after Filament request returns |
 | Zero-maintenance | `b6f1759` | `DispatchDueCrawlsCommand` spawns detached too; Windows Task Scheduler; Redis as service |
 | Notifications scope | `c9febb4` | filter to `event='crawl.failed'`; drop `runInBackground()` from schedule (silences cmd flash) |
+| Silent flash fix | `db0864f` (orig `2a1ea78`) | S4U Task Scheduler logon + `proc_open` with `bypass_shell` — kills the per-minute cmd-window flash entirely |
+| Brand mark | `9b22161` (orig `92c7637`) | brand mark + favicon set, Filament `brandLogo()` |
+| Perf pass | `9c61309` | parallel page concurrency, immutable asset cache + ETag/304, adaptive 2s/15s polling, N+1 elimination |
+| **Storage system + Browsershot** | `0f22fae` | content-addressed dedup pool (`asset_files` table + ref counting), per-site retention dropdown, manual delete, **Trash page with 7-day soft-delete window**, nightly retention + trash-purge commands, dashboard "% of budget" tile, full Browsershot integration replacing static HTML capture |
+| Crawler tuning | `938cd42` | concurrency 10 → 3 default (WP staging hosts choke at 10), `rewriteAnchors` neutralizes unarchived internal links instead of letting iframe navigate to live site, base_url column wraps instead of truncating, admin pages full-width, dropped progress bar from "Crawling X%" indicator |
+| Setup docs | `09b72e8` | `SETUP.md` — full fresh-device install guide |
 
 ---
 
@@ -228,6 +235,72 @@ Stacked because each layer covers a different attack class:
    `SESSION_HTTP_ONLY=true`, `SESSION_SAME_SITE=lax`, with
    `SESSION_SECURE_COOKIE=null` (set to `true` in prod `.env`).
 
+### 7. Content-addressed dedup pool with reference counting
+
+`asset_files` table stores every unique file ONCE on disk, keyed by
+`sha256(bytes)`. Many `assets` rows (across snapshots / sites / runs) can
+point at the same `asset_files` row via `asset_file_id`. `ref_count`
+tracks how many `assets` rows reference each pool entry; when it hits
+zero the physical file at `_pool/{ab}/{cd}/{full-hash}.{ext}` is deleted.
+
+The dedup decision happens at download time in `AssetDownloader::download()`:
+fetch bytes → `sha256()` → `AssetFile::firstOrCreatePool()` either reuses
+an existing pool entry (no disk write) or creates a new one (one disk write).
+Cross-run AND cross-site dedup come for free because the pool is global.
+
+`Asset::booted()`'s `deleting` event cascades the ref-decrement so
+deleting an Asset row automatically frees the pool file when it's the last
+reference. Bulk deletes (e.g. `archive:trash-purge` hard-deleting an entire
+crawl run) bypass Eloquent events for performance — the purge command does
+batched ref_count decrements per asset_file_id then `forceDelete`s the
+crawl run (DB cascade tidies snapshots + assets in one shot).
+
+One-shot migration command `archive:migrate-to-pool` consolidated the
+pre-existing 3,167 asset rows into 666 unique pool entries (526 MB legacy
+footprint → 133 MB pool, 75% reduction). Run with `--commit --cleanup`
+to actually free the legacy per-crawl files.
+
+### 8. Tiered retention + 7-day trash window
+
+Per-site `retention_months` column on `sites` (null = use global default,
+0 = keep forever, 1-12 = months). Global default in `settings.default_retention_months`
+(default 3). Configurable in Site Edit form + Settings page UI.
+
+Two nightly commands run via `routes/console.php`:
+1. `archive:retention` at `cleanup_hour:00` (default 03:00) — soft-deletes
+   crawl runs past their site's cutoff (uses `SoftDeletes` trait on `CrawlRun`,
+   sets `deleted_at`).
+2. `archive:trash-purge` at `cleanup_hour:30` (30 min later) — hard-deletes
+   runs in trash > 7 days. This is where disk space actually frees, via the
+   pool's ref-counting logic.
+
+Manual delete from Crawl History uses the same soft-delete → trash → purge
+flow with a per-row "Delete" action + bulk-delete. Confirmation modal shows
+exact MB to be freed (split into "unique to this crawl" vs "shared with
+other crawls" via the dedup ref counts).
+
+`/admin/trash` page lists soft-deleted runs with auto-purge countdown,
+"Restore" and "Purge now" actions. "Empty trash" header button purges all.
+
+### 9. Browsershot replaces static HTML capture (`ARCHIVE_RENDERER=browsershot`)
+
+`PageRenderer` service wraps Spatie's Browsershot. When `ARCHIVE_RENDERER`
+is `browsershot` (default), `ArchiveCrawlObserver::crawled()` runs each page
+through real Chromium and uses the post-render DOM as the body before
+running through `HtmlRewriter` + `AssetDownloader`. JS-injected content,
+resolved CSS variables, lazy-loaded images all get captured.
+
+`ARCHIVE_NODE_BINARY` and `ARCHIVE_NPM_BINARY` env vars point at the local
+Node install — required because Browsershot spawns Puppeteer subprocess.
+Defaults to Laragon's bundled Node 22 paths.
+
+Falls back to the original HTTP response body if Chromium fails for any
+reason (timeout, crash, missing binary). `Log::warning` records the failure.
+
+Trade-off: Browsershot is ~5× slower than static (5-15s/page vs 1-3s/page)
+but captures everything users actually see. For a single-machine local
+install this is the right tradeoff — overnight crawls have the time.
+
 ### 5. Silent crawl spawns on Windows — three layers
 
 Stacked because any one of them alone leaks a console window:
@@ -248,16 +321,19 @@ Stacked because any one of them alone leaks a console window:
 
 ## Known issues / deferred
 
-- **GitHub push**: `sitesatscale/site-archive` returned "Repository not found"
-  at the start. Still not pushed — user needs to confirm repo exists or
-  create it empty. All 20 commits are local on `main`.
-- **SPA pages intermittently status=0**: Netlify cold starts + rate limits
-  sometimes make crawls return zero status. Already mitigated with
-  concurrency=3, 200ms delay, 30s timeout. True fix would be Browsershot
-  (headless Chrome) — deferred to when a site really needs it.
+- **Terminal flashes from Browsershot's `node.exe`** — the S4U + bypass_shell
+  fix (commit `db0864f`) silences the scheduler. But Browsershot spawns
+  `node.exe` per page render, and `node.exe` has a console (unlike
+  `php-win.exe`), so a window flashes during active crawls. Real fix is a
+  persistent Browsershot worker pool (long-lived Chromium + Node service);
+  deferred until it becomes a real annoyance.
+- **Some pages still fail at concurrency=3** on really slow WP staging hosts
+  (run #44 captured 16/22 = 73%). Workarounds: drop further to 2, or build
+  a "retry failed pages" command that targets just status=0 snapshots from
+  a previous run. Per-site concurrency override would also help.
 - **True 24/7 automation**: Windows Task Scheduler only fires when the PC is
-  on. For run-even-when-PC-is-off, deploy to a Linux VPS — Laravel Forge +
-  DigitalOcean ~$17/mo, or free tiers on Fly.io/Railway. Deferred.
+  on. For run-even-when-PC-is-off, deploy to a Linux box — but the user
+  has explicitly chosen single-machine local install (no online hosting).
 - **Assets "other" bucket**: a handful of assets (JSON manifests, misc)
   still fall into `other`. AssetType classifier handles the common cases
   (images, CSS, JS, fonts) — extending it when new types show up is easy.
@@ -266,14 +342,21 @@ Stacked because any one of them alone leaks a console window:
 
 ## Where to resume from
 
-1. **User wants to push to GitHub** → ask for the correct repo URL, then
-   `git remote add origin …` + `git push -u origin main`. Confirm before
-   push per the original plan.
+1. **Setting up on a new machine** → see [`SETUP.md`](./SETUP.md). Covers
+   prerequisites, install steps, .env config (especially `ARCHIVE_NODE_BINARY`
+   for Browsershot), database setup, Windows Task Scheduler S4U snippet,
+   common issues. Critical: re-create the Task Scheduler entry per the
+   PowerShell snippet — it doesn't transfer between machines.
 2. **User wants a new feature** → follow the existing phase pattern, commit
    per phase with detailed commit messages, don't introduce a new model
-   without checking the existing schema.
+   without checking the existing schema. Read decisions #7-#9 above before
+   touching the storage system.
 3. **User reports a bug** → check `storage/logs/laravel.log` first, then
    tail the Windows Scheduled Task history if it's scheduler-related.
+4. **Open bugs/threads** are tracked in user memory at
+   `~/.claude/projects/.../memory/open_threads.md` — terminal flashes from
+   Browsershot's `node.exe`, retry-failed-pages command, snapshot navigation
+   verification.
 
 Commit messages follow a `type(scope): subject` prefix (see `git log`) with
 a detailed body. Every commit includes `Co-Authored-By: Claude …`. Stick to
