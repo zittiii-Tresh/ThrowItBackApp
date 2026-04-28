@@ -37,15 +37,30 @@ Built for **Sites at Scale** to answer questions like:
 | Doc | What it's for |
 |---|---|
 | **[`SETUP.md`](./SETUP.md)** | "How do I install this on a new machine?" — step-by-step install + config |
+| **[`PORTABLE.md`](./PORTABLE.md)** | "How do I run the desktop-app-style portable bundle?" — SQLite, Start.bat, no Laragon required |
 | **[`CLAUDE.md`](./CLAUDE.md)** | "How does this work?" — architecture, design decisions, current runtime state, where to pick up |
+
+## Default admin credentials
+
+Fresh installs (portable bundle first-run, or `php artisan migrate` + the seeded user) come with:
+
+```
+Email:    admin@sitesatscale.com
+Password: admin123
+```
+
+Sign in at `/admin` and **change this immediately** under Admin → Admins. Email verification is disabled for the internal-tool deployment, so any new admin you add can log in straight away with the password you set.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/zittiii-Tresh/ThrowItBack.git
-cd ThrowItBack
-# Then follow SETUP.md
+git clone https://github.com/sitesatscale/site-archive.git
+cd site-archive
+# Then follow SETUP.md (Laragon path) or PORTABLE.md (SQLite path)
 ```
+
+Or skip the dev install entirely — grab the latest portable build from
+[Releases](https://github.com/sitesatscale/site-archive/releases) and double-click `Start.bat`.
 
 ## License
 
